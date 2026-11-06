@@ -8,30 +8,104 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body class="bg-gradient-to-br from-pink-500 via-purple-600 to-indigo-700 h-screen flex flex-col justify-between text-white font-sans overflow-hidden">
+    
     <header class="p-4 text-center border-b border-white/10 flex justify-between items-center">
         <h1 class="text-xl font-bold tracking-wider">❤️ PulseMatch</h1>
         <span id="username" class="text-xs bg-white/20 px-2 py-1 rounded-full">Loading...</span>
     </header>
+
     <main class="flex-1 flex flex-col items-center justify-center p-4">
-        <div class="w-full max-w-xs bg-white text-gray-900 rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[420px]">
-            <div class="h-3/4 bg-gray-300 flex items-center justify-center">
-                <span class="text-6xl font-bold text-gray-500">?</span>
+        <div class="w-full max-w-xs bg-white text-gray-900 rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[420px] relative">
+            <div class="h-3/4 bg-gray-200 flex items-center justify-center relative">
+                <span id="profile-initial" class="text-6xl font-bold text-gray-400">?</span>
             </div>
             <div class="p-4 flex flex-col justify-center flex-1 bg-white">
-                <h2 id="profile-name" class="text-2xl font-bold">Discovering...</h2>
-                <p id="profile-bio" class="text-sm text-gray-500 mt-1">Finding matches near you...</p>
+                <h2 id="profile-name" class="text-2xl font-bold">Loading...</h2>
+                <p id="profile-bio" class="text-sm text-gray-500 mt-1">Finding matches...</p>
             </div>
         </div>
+
+        <!-- Action Buttons -->
+        <div class="flex justify-around w-full max-w-xs mt-6">
+            <button onclick="swipe('pass')" class="w-16 h-16 bg-white rounded-full shadow-lg flex items-center justify-center text-red-500 text-2xl font-bold active:scale-95 transition">❌</button>
+            <button onclick="swipe('like')" class="w-16 h-16 bg-white rounded-full shadow-lg flex items-center justify-center text-green-500 text-2xl font-bold active:scale-95 transition">❤️</button>
+        </div>
     </main>
+
     <script>
+        const API_URL = "https://pulsematch-api-hih9.onrender.com"; // Replace with your actual Render backend URL
         let tg = window.Telegram.WebApp;
         tg.expand();
-        const user = tg.initDataUnsafe?.user;
-        if (user) {
-            document.getElementById('username').innerText = `@${user.username || user.first_name}`;
-        } else {
-            document.getElementById('username').innerText = "@TestUser";
+
+        let currentUser = {
+            id: tg.initDataUnsafe?.user?.id || Math.floor(Math.random() * 1000000),
+            username: tg.initDataUnsafe?.user?.username || tg.initDataUnsafe?.user?.first_name || "TestUser",
+            bio: "Looking for meaningful connections!"
+        };
+
+        let currentMatch = null;
+
+        document.getElementById('username').innerText = `@${currentUser.username}`;
+
+        async function registerUser() {
+            try {
+                await fetch(`${API_URL}/users`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentUser)
+                });
+            } catch (err) {
+                console.error("Registration failed", err);
+            }
         }
+
+        async function loadNextMatch() {
+            try {
+                const res = await fetch(`${API_URL}/match/next`);
+                const data = await res.json();
+                currentMatch = data;
+                
+                if (data.id === 0 || !data.username) {
+                    document.getElementById('profile-name').innerText = "No More Profiles";
+                    document.getElementById('profile-bio').innerText = "Check back later for new matches!";
+                    document.getElementById('profile-initial').innerText = "∅";
+                } else {
+                    document.getElementById('profile-name').innerText = data.username;
+                    document.getElementById('profile-bio').innerText = data.bio || "No bio provided.";
+                    document.getElementById('profile-initial').innerText = data.username.charAt(0).toUpperCase();
+                }
+            } catch (err) {
+                console.error("Failed to load match", err);
+            }
+        }
+
+        async function swipe(action) {
+            if (!currentMatch || currentMatch.id === 0) {
+                loadNextMatch();
+                return;
+            }
+
+            try {
+                await fetch(`${API_URL}/swipe`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: currentUser.id,
+                        target_id: currentMatch.id,
+                        action: action
+                    })
+                });
+            } catch (err) {
+                console.error("Swipe recording failed", err);
+            }
+
+            loadNextMatch();
+        }
+
+        // Initialize app on load
+        registerUser().then(() => {
+            loadNextMatch();
+        });
     </script>
 </body>
 </html>
