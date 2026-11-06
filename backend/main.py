@@ -72,3 +72,21 @@ async def record_swipe(swipe: SwipeCreate):
         return {"status": "recorded"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+        @app.get("/profiles/{user_id}")
+async def get_profiles(user_id: int):
+    try:
+        conn = await asyncpg.connect(DATABASE_URL)
+        # Fetch profiles excluding the current user
+        rows = await conn.fetch(
+            """
+            SELECT telegram_id, username, display_name, bio, location, photo 
+            FROM users 
+            WHERE telegram_id != $1
+            """,
+            user_id
+        )
+        await conn.close()
+        return [dict(r) for r in rows]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
